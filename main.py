@@ -2,21 +2,31 @@ from google import genai
 from dotenv import load_dotenv
 import os
 import json
-from reportlab.platypus import SimpleDocTemplate, Paragraph
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.units import inch
 
 load_dotenv()
 
 API_key = os.getenv("gemini_api_key")
 client = genai.Client(api_key=API_key)
 
+PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+REPORTS_DIR = os.path.join(PROJECT_DIR, "reports")
+os.makedirs(REPORTS_DIR, exist_ok=True)
+
+REPORTS_JSON = os.path.join(PROJECT_DIR, "reports.json")
+
+reports = []
+
+
 def menu():
-    print("\n========AI Research Assistant=========")
+    print("\n======== AI Research Assistant ========")
     print("\n1. Research Topic")
     print("2. View Previous Reports")
     print("3. Delete History")
     print("0. Exit")
-
 
 def research():
 
@@ -46,33 +56,37 @@ Your report must contain:
 """
 
     try:
+
         response = client.models.generate_content(
             model="gemini-flash-lite-latest",
             contents=prompt
         )
 
         ai_response = response.text
-        report ={
+
+        report = {
             "topic": topic,
             "summary": ai_response
         }
-        reports.append(report)
-        save_reports()
-        generate_pdf(topic, ai_response)
 
+        reports.append(report)
+
+        save_reports()
+
+        generate_pdf(topic, ai_response)
 
         print("\n========== AI REPORT ==========\n")
         print(ai_response)
 
-
     except Exception as e:
         print("Error:", e)
 
-reports=[]
 
 def save_reports():
-    with open("reports.json", "w") as file:
-        json.dump(reports, file, indent=4)
+
+    with open(REPORTS_JSON, "w", encoding="utf-8") as file:
+        json.dump(reports, file, indent=4, ensure_ascii=False)
+
 
 def load_reports():
 
@@ -80,8 +94,7 @@ def load_reports():
 
     try:
 
-        with open("reports.json", "r") as file:
-
+        with open(REPORTS_JSON, "r", encoding="utf-8") as file:
             reports = json.load(file)
 
     except (FileNotFoundError, json.JSONDecodeError):
@@ -103,7 +116,7 @@ def view_report():
         print(f"Topic: {report['topic']}")
         print()
         print(report["summary"])
-        print("-" * 50)
+        print("-" * 60)
 
 def delete_report():
 
@@ -115,19 +128,19 @@ def delete_report():
         print("-----------------")
         return
 
-    print("\n========== All Reports ==========\n")
-
     reports.clear()
+
     save_reports()
+
     print("-----------------")
-    print("Cleared")
+    print("History Cleared")
     print("-----------------")
 
 def generate_pdf(topic, summary):
 
-    os.makedirs("reports", exist_ok=True)
+    filename = f"{topic.replace('/', '-').replace(':', '-')}.pdf"
 
-    pdf_path = os.path.join("reports", f"{topic}.pdf")
+    pdf_path = os.path.join(REPORTS_DIR, filename)
 
     doc = SimpleDocTemplate(pdf_path)
 
@@ -135,50 +148,75 @@ def generate_pdf(topic, summary):
 
     story = []
 
-    story.append(
-        Paragraph("AI Research Report", styles["Title"])
-    )
+    story.append(Paragraph("AI Research Report", styles["Title"]))
+    story.append(Spacer(1, 0.3 * inch))
 
     story.append(
         Paragraph(f"<b>Topic:</b> {topic}", styles["Heading2"])
     )
 
+    story.append(Spacer(1, 0.2 * inch))
+
     summary = summary.replace("**", "")
 
-    paragraphs = summary.split("\n\n")
+    lines = summary.split("\n")
 
-    for paragraph in paragraphs:
+    for line in lines:
 
-        if paragraph.strip():
+        line = line.strip()
 
-            story.append(
-                Paragraph(paragraph, styles["BodyText"])
-            )
+        if not line:
+            story.append(Spacer(1, 0.12 * inch))
+            continue
+
+        story.append(
+            Paragraph(line, styles["BodyText"])
+        )
 
     doc.build(story)
 
-    print(f"\nPDF saved successfully at: {pdf_path}")
+    print(f"\nPDF saved successfully!")
+    print(pdf_path)
 
-choices = [0,1,2,3]
+choices = [0, 1, 2, 3]
 
 def choose():
+
     while True:
+
         menu()
 
         try:
-            choice= int(input("\nEnter your choice: "))
+
+            choice = int(input("\nEnter your choice: "))
+
         except ValueError:
-            print("Please choose Valid number")
+
+            print("Please choose a valid number.")
             continue
+
+        if choice not in choices:
+
+            print("Invalid choice!")
+            continue
+
         if choice == 1:
+
             research()
-        elif choice==2:
+
+        elif choice == 2:
+
             view_report()
-        elif choice==3:
+
+        elif choice == 3:
+
             delete_report()
-        elif choice==0:
-            print("Thankyou for using me!")
+
+        elif choice == 0:
+
+            print("Thank you for using me!")
             break
 
 load_reports()
+
 choose()
